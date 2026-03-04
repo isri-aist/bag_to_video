@@ -17,7 +17,7 @@ setup(
     maintainer_email='antoine.caillot@aist.go.jp',
     description='TODO: Package description',
     license='TODO: License declaration',
-    tests_require=['pytest'],
+    # tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'bag_to_video = bag_to_video.bag_to_video:main',
