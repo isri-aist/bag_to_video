@@ -7,6 +7,7 @@ from rclpy.qos import QoSHistoryPolicy
 from rclpy.qos import QoSDurabilityPolicy
 
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import NavSatFix
 
 import rosbag2_py
 from rclpy.serialization import deserialize_message
@@ -93,7 +94,7 @@ class Bage2Video(Node):
         self.done = False
         self.requestTermination = False
         
-        pathToBag = "/Users/caillotantoine/Desktop/record_27_fev_2026/rosbag2_2026_02_27-16_48_54"
+        pathToBag = "/Volumes/CAILLOT/Datasets/CAILLOT/RAP/record_2026_03_11/rosbag2_2026_03_11-16_37_57"
 
         qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
@@ -105,11 +106,16 @@ class Bage2Video(Node):
         self.topicsInBag = dict()
         self.topicsInBag['/ids_camera/image_raw'] = BagContentTopic('/ids_camera/image_raw', qos, 3) # hdr, short and long -> 3 images expected
         self.topicsInBag['/yap_flir4ros/image_raw'] = BagContentTopic('/yap_flir4ros/image_raw', qos, 1)
+        self.topicsInBag['/fix'] = BagContentTopic('/fix', qos, 0)
         self.remainingToRead = 0
 
         self.img_in_queue = 0
         self.bridge = CvBridge()
-        video_folder = '/Users/caillotantoine/Desktop/video_out'
+        self.video_folder = '/Users/caillotantoine/Desktop/video_out'
+
+        with open(f"{self.video_folder}/gps_log.txt", "w") as f:
+            f.write(f"timestamp, latitude, longitude, altitude\n")
+        
         
 
         storage_options = rosbag2_py.StorageOptions(
@@ -143,10 +149,10 @@ class Bage2Video(Node):
 
 
         self.videoRecorders = dict()
-        self.videoRecorders['/contrastor/output'] = VideoRecorder(video_folder, "ae_contrasted", '/contrastor/output', self.topicsInBag['/yap_flir4ros/image_raw'].fps)
-        self.videoRecorders['/camera/HDR/image_raw'] = VideoRecorder(video_folder, "hdr", '/camera/HDR/image_raw', self.topicsInBag['/ids_camera/image_raw'].fps)
-        self.videoRecorders['/camera/LDR/short/image_raw'] = VideoRecorder(video_folder, "short", '/camera/LDR/short/image_raw', self.topicsInBag['/ids_camera/image_raw'].fps)
-        self.videoRecorders['/camera/LDR/long/image_raw'] = VideoRecorder(video_folder, "long", '/camera/LDR/long/image_raw', self.topicsInBag['/ids_camera/image_raw'].fps)
+        self.videoRecorders['/contrastor/output'] = VideoRecorder(self.video_folder, "ae_contrasted", '/contrastor/output', self.topicsInBag['/yap_flir4ros/image_raw'].fps)
+        self.videoRecorders['/camera/HDR/image_raw'] = VideoRecorder(self.video_folder, "hdr", '/camera/HDR/image_raw', self.topicsInBag['/ids_camera/image_raw'].fps)
+        self.videoRecorders['/camera/LDR/short/image_raw'] = VideoRecorder(self.video_folder, "short", '/camera/LDR/short/image_raw', self.topicsInBag['/ids_camera/image_raw'].fps)
+        self.videoRecorders['/camera/LDR/long/image_raw'] = VideoRecorder(self.video_folder, "long", '/camera/LDR/long/image_raw', self.topicsInBag['/ids_camera/image_raw'].fps)
 
         self.sub1 = self.create_subscription(
             Image,
@@ -223,13 +229,21 @@ class Bage2Video(Node):
                     self.requestTermination = True
                 return
         
-            topic, data, t = self.reader.read_next()
+            topic, data, timestamp = self.reader.read_next()
 
             if topic in self.topicsInBag:
                 valid = True
 
+                
+
                 tInBag = self.topicsInBag[topic]
                 msg = deserialize_message(data, tInBag.getType())
+                if topic == '/fix':
+                    line = f"{timestamp},{msg.latitude},{msg.longitude},{msg.altitude}\n"
+                    with open(f"{self.video_folder}/gps_log.txt", "a") as f:
+                        f.write(line)
+                    self.read_next_and_publish()
+                    return
                 self.img_in_queue += tInBag.publish(msg)
                 self.publishNimages -= 1
                 if self.publishNimages > 0:

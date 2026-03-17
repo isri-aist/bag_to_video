@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'bag_to_video = bag_to_video.bag_to_video:main',
+            'fix_to_csv = bag_to_video.fix_to_csv:main',
         ],
     },
 )
